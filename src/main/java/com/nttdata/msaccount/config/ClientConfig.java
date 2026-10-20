@@ -7,6 +7,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 import com.nttdata.msaccount.client.CreditCardClient;
 import com.nttdata.msaccount.client.CustomerClient;
 
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+
 @Configuration
 public class ClientConfig {
 
@@ -16,16 +18,20 @@ public class ClientConfig {
     }
 
     @Bean
-    CustomerClient customerClient(WebClient.Builder builder, AccountProperties properties) {
+    CustomerClient customerClient(WebClient.Builder builder, AccountProperties properties,
+            CircuitBreakerRegistry registry) {
         return new CustomerClient(
                 builder.clone().baseUrl(properties.clients().customerBaseUrl()).build(),
-                properties.clients().timeout());
+                properties.clients().timeout(),
+                registry.circuitBreaker("customer"));
     }
 
     @Bean
-    CreditCardClient creditCardClient(WebClient.Builder builder, AccountProperties properties) {
+    CreditCardClient creditCardClient(WebClient.Builder builder, AccountProperties properties,
+            CircuitBreakerRegistry registry) {
         return new CreditCardClient(
                 builder.clone().baseUrl(properties.clients().creditBaseUrl()).build(),
-                properties.clients().timeout());
+                properties.clients().timeout(),
+                registry.circuitBreaker("credit"));
     }
 }

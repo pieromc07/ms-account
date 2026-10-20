@@ -17,6 +17,7 @@ import com.nttdata.msaccount.exception.DependencyUnavailableException;
 import com.nttdata.msaccount.model.CustomerProfile;
 import com.nttdata.msaccount.model.CustomerType;
 
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -34,7 +35,7 @@ class CustomerClientTest {
                     return response;
                 })
                 .build();
-        return new CustomerClient(webClient, timeout);
+        return new CustomerClient(webClient, timeout, CircuitBreaker.ofDefaults("customer-test"));
     }
 
     private static Mono<ClientResponse> json(HttpStatus status, String body) {

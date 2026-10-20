@@ -15,6 +15,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import com.nttdata.msaccount.exception.DependencyUnavailableException;
 
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -32,7 +33,7 @@ class CreditCardClientTest {
                     return response;
                 })
                 .build();
-        return new CreditCardClient(webClient, timeout);
+        return new CreditCardClient(webClient, timeout, CircuitBreaker.ofDefaults("credit-test"));
     }
 
     private static Mono<ClientResponse> json(HttpStatus status, String body) {
@@ -85,11 +86,22 @@ class CreditCardClientTest {
     }
 
     @Test
-    void hasCreditCardFailsWithDependencyErrorOnTimeout() {
-        CreditCardClient client = clientReturning(Mono.never(), Duration.ofMillis(50));
+    void hasCreditCardFailsFastWithoutCallingServiceWhenCircuitIsOpen() {
+        CircuitBreaker circuitBreaker = CircuitBreaker.ofDefaults("credit-open");
+        circuitBreaker.transitionToOpenState();
+        WebClient webClient = WebClient.builder()
+                .baseUrl("http://credit:8082")
+                .exchangeFunction(request -> {
+                    requestedUrl.set(request.url().toString());
+                    return json(HttpStatus.OK, "[]");
+                })
+                .build();
+        CreditCardClient client = new CreditCardClient(webClient, Duration.ofSeconds(2), circuitBreaker);
 
         StepVerifier.create(client.hasCreditCard(CUSTOMER_ID))
                 .expectError(DependencyUnavailableException.class)
                 .verify();
+        assertThat(requestedUrl.get()).isNull();
     }
 }
+

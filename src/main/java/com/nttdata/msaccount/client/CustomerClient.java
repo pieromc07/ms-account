@@ -10,16 +10,20 @@ import com.nttdata.msaccount.exception.DependencyUnavailableException;
 import com.nttdata.msaccount.model.CustomerProfile;
 import com.nttdata.msaccount.model.CustomerType;
 
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator;
 import reactor.core.publisher.Mono;
 
 public class CustomerClient {
 
     private final WebClient webClient;
     private final Duration timeout;
+    private final CircuitBreaker circuitBreaker;
 
-    public CustomerClient(WebClient webClient, Duration timeout) {
+    public CustomerClient(WebClient webClient, Duration timeout, CircuitBreaker circuitBreaker) {
         this.webClient = webClient;
         this.timeout = timeout;
+        this.circuitBreaker = circuitBreaker;
     }
 
     /**
@@ -39,6 +43,7 @@ public class CustomerClient {
                             new DependencyUnavailableException("ms-customer responded with " + response.statusCode())));
                 })
                 .timeout(timeout)
+                .transform(CircuitBreakerOperator.of(circuitBreaker))
                 .onErrorMap(error -> !(error instanceof DependencyUnavailableException),
                         error -> new DependencyUnavailableException("ms-customer is unavailable", error));
     }

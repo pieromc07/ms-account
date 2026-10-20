@@ -3,7 +3,6 @@ package com.nttdata.msaccount.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -77,7 +76,8 @@ class AccountServiceTest {
     void openPersonalSavingsAccountPersistsActiveAccount() {
         when(customerClient.findById(CUSTOMER_ID))
                 .thenReturn(Mono.just(customer(CustomerType.PERSONAL, CustomerProfile.STANDARD)));
-        when(repository.countByCustomerIdAndAccountTypeAndStatus(CUSTOMER_ID, AccountType.SAVINGS, AccountStatus.ACTIVE))
+        when(repository.countByCustomerIdAndAccountTypeAndStatus(
+                CUSTOMER_ID, AccountType.SAVINGS, AccountStatus.ACTIVE))
                 .thenReturn(Mono.just(0L));
         when(repository.save(any(Account.class))).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 
@@ -137,7 +137,8 @@ class AccountServiceTest {
     void openSecondActivePersonalCurrentAccountFailsWithConflict() {
         when(customerClient.findById(CUSTOMER_ID))
                 .thenReturn(Mono.just(customer(CustomerType.PERSONAL, CustomerProfile.STANDARD)));
-        when(repository.countByCustomerIdAndAccountTypeAndStatus(CUSTOMER_ID, AccountType.CURRENT, AccountStatus.ACTIVE))
+        when(repository.countByCustomerIdAndAccountTypeAndStatus(
+                CUSTOMER_ID, AccountType.CURRENT, AccountStatus.ACTIVE))
                 .thenReturn(Mono.just(1L));
 
         assertFailsWith(service.open(CUSTOMER_ID, AccountType.CURRENT, BigDecimal.TEN), HttpStatus.CONFLICT);
@@ -161,7 +162,8 @@ class AccountServiceTest {
     void openVipSavingsWithoutCreditCardFailsWithBadRequest() {
         when(customerClient.findById(CUSTOMER_ID))
                 .thenReturn(Mono.just(customer(CustomerType.PERSONAL, CustomerProfile.VIP)));
-        when(repository.countByCustomerIdAndAccountTypeAndStatus(CUSTOMER_ID, AccountType.SAVINGS, AccountStatus.ACTIVE))
+        when(repository.countByCustomerIdAndAccountTypeAndStatus(
+                CUSTOMER_ID, AccountType.SAVINGS, AccountStatus.ACTIVE))
                 .thenReturn(Mono.just(0L));
         when(creditCardClient.hasCreditCard(CUSTOMER_ID)).thenReturn(Mono.just(false));
 
@@ -174,7 +176,8 @@ class AccountServiceTest {
     void openVipSavingsWithCreditCardPersistsAccount() {
         when(customerClient.findById(CUSTOMER_ID))
                 .thenReturn(Mono.just(customer(CustomerType.PERSONAL, CustomerProfile.VIP)));
-        when(repository.countByCustomerIdAndAccountTypeAndStatus(CUSTOMER_ID, AccountType.SAVINGS, AccountStatus.ACTIVE))
+        when(repository.countByCustomerIdAndAccountTypeAndStatus(
+                CUSTOMER_ID, AccountType.SAVINGS, AccountStatus.ACTIVE))
                 .thenReturn(Mono.just(0L));
         when(creditCardClient.hasCreditCard(CUSTOMER_ID)).thenReturn(Mono.just(true));
         when(repository.save(any(Account.class))).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));

@@ -12,6 +12,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 import com.nttdata.msaccount.client.CreditCardClient;
 import com.nttdata.msaccount.client.CustomerClient;
 
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+
 class ClientConfigTest {
 
     private static final AccountProperties PROPERTIES = new AccountProperties(
@@ -21,9 +23,10 @@ class ClientConfigTest {
     @Test
     void createsClientsWithConfiguredBaseUrls() {
         ClientConfig config = new ClientConfig();
+        CircuitBreakerRegistry registry = CircuitBreakerRegistry.ofDefaults();
 
-        CustomerClient customerClient = config.customerClient(WebClient.builder(), PROPERTIES);
-        CreditCardClient creditCardClient = config.creditCardClient(WebClient.builder(), PROPERTIES);
+        CustomerClient customerClient = config.customerClient(WebClient.builder(), PROPERTIES, registry);
+        CreditCardClient creditCardClient = config.creditCardClient(WebClient.builder(), PROPERTIES, registry);
 
         assertThat(customerClient).isNotNull();
         assertThat(creditCardClient).isNotNull();
@@ -34,6 +37,7 @@ class ClientConfigTest {
         new ApplicationContextRunner()
                 .withUserConfiguration(ClientConfig.class)
                 .withBean(AccountProperties.class, () -> PROPERTIES)
+                .withBean(CircuitBreakerRegistry.class, CircuitBreakerRegistry::ofDefaults)
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(WebClient.Builder.class);

@@ -42,7 +42,8 @@ public class AccountService {
     public Single<Account> open(String customerId, AccountType accountType, BigDecimal openingAmount) {
         BigDecimal amount = openingAmount == null ? BigDecimal.ZERO : openingAmount;
         if (amount.compareTo(properties.rules().minimumOpeningAmount()) < 0) {
-            return Single.error(badRequest("opening amount must be at least " + properties.rules().minimumOpeningAmount()));
+            return Single.error(badRequest(
+                    "opening amount must be at least " + properties.rules().minimumOpeningAmount()));
         }
         return loadCustomer(customerId).flatMap(customer -> {
             CustomerType customerType = customer.customerType();
@@ -146,7 +147,8 @@ public class AccountService {
                         : Completable.error(badRequest("customer must have a credit card to open this account")));
     }
 
-    private Account newAccount(String customerId, CustomerType customerType, AccountType accountType, BigDecimal amount) {
+    private Account newAccount(String customerId, CustomerType customerType, AccountType accountType,
+            BigDecimal amount) {
         Instant now = Instant.now();
         List<Member> holders = new ArrayList<>();
         if (customerType == CustomerType.BUSINESS) {

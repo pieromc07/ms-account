@@ -75,7 +75,8 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(ResponseStatusException.class)
-    public ResponseEntity<ApiError> handleResponseStatus(ResponseStatusException exception, ServerWebExchange exchange) {
+    public ResponseEntity<ApiError> handleResponseStatus(ResponseStatusException exception,
+            ServerWebExchange exchange) {
         HttpStatusCode code = exception.getStatusCode();
         String message = exception.getReason() != null ? exception.getReason() : "Request failed";
         return buildWithCode(code.value(), message, exchange);

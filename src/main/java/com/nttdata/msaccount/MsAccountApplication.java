@@ -10,8 +10,8 @@ import com.nttdata.msaccount.config.AccountProperties;
 @EnableConfigurationProperties(AccountProperties.class)
 public class MsAccountApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(MsAccountApplication.class, args);
-	}
+    public static void main(String[] args) {
+        SpringApplication.run(MsAccountApplication.class, args);
+    }
 
 }
