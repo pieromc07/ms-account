@@ -5,6 +5,10 @@ spring:
     import:
       - optional:configserver:${CONFIG_SERVER_URL:http://localhost:8888}
       - optional:classpath:mongo-credentials.yaml
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
 server:
   port: ${SERVER_PORT:8081}
@@ -43,3 +47,5 @@ account:
     customer-base-url: ${CUSTOMER_BASE_URL:http://localhost:8080}
     credit-base-url: ${CREDIT_BASE_URL:http://localhost:8082}
     timeout: 2s
+  catalog:
+    cache-ttl: 10m

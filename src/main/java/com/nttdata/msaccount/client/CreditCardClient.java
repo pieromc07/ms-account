@@ -13,8 +13,8 @@ import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOper
 import reactor.core.publisher.Mono;
 
 /**
- * Provisional: ms-credit has no documented contract yet. Assumes GET /api/v1/credit-cards?customerId=
- * returns a JSON array where a non-empty array means the customer owns a card.
+ * Consulta las tarjetas ACTIVE del cliente en ms-credit (GET /api/v1/credit-cards?customerId=&status=ACTIVE).
+ * Una respuesta con al menos un elemento indica que el cliente tiene tarjeta de crédito vigente.
  */
 public class CreditCardClient {
 
@@ -32,6 +32,7 @@ public class CreditCardClient {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/v1/credit-cards")
                         .queryParam("customerId", customerId)
+                        .queryParam("status", "ACTIVE")
                         .build())
                 .retrieve()
                 .onStatus(HttpStatusCode::isError,

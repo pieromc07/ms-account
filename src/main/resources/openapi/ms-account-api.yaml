@@ -38,6 +38,8 @@ tags:
     description: Gestión de titulares de cuentas empresariales
   - name: Signers
     description: Gestión de firmantes autorizados de cuentas empresariales
+  - name: AccountProducts
+    description: Catálogo maestro de productos de cuenta (cacheado en Redis)
 
 paths:
   /api/v1/accounts:
@@ -525,6 +527,28 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /api/v1/account-products:
+    get:
+      tags:
+        - AccountProducts
+      summary: List account products
+      description: >
+        Returns the bank's catalog of account products. The catalog is master data:
+        it is read from MongoDB and cached in Redis with a time-to-live.
+      operationId: listAccountProducts
+      responses:
+        '200':
+          description: Catalog of account products.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccountProduct'
+
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
 components:
   parameters:
     AccountId:
@@ -636,6 +660,55 @@ components:
       enum:
         - ACTIVE
         - INACTIVE
+
+    CustomerType:
+      type: string
+      enum:
+        - PERSONAL
+        - BUSINESS
+
+    CustomerProfile:
+      type: string
+      enum:
+        - STANDARD
+        - VIP
+        - PYME
+
+    AccountProduct:
+      type: object
+      required:
+        - code
+        - name
+        - accountType
+        - customerTypes
+        - customerProfiles
+        - requiresCreditCard
+        - minimumOpeningAmount
+      properties:
+        code:
+          type: string
+          example: SAVINGS_VIP
+        name:
+          type: string
+          example: Cuenta de ahorro VIP
+        accountType:
+          $ref: '#/components/schemas/AccountType'
+        customerTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerType'
+        customerProfiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerProfile'
+        requiresCreditCard:
+          type: boolean
+          description: The customer must hold an active credit card in ms-credit to open this product.
+        minimumOpeningAmount:
+          type: number
+          format: double
+          minimum: 0
+          example: 0.00
 
     CreateAccountRequest:
       type: object

@@ -1143,6 +1143,41 @@
           }
         }
       ]
+    },
+    {
+      "name": "Catálogo de productos",
+      "item": [
+        {
+          "name": "Listar productos de cuenta (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200 y catálogo con reglas de negocio\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var products = pm.response.json();",
+                  "    pm.expect(products).to.be.an(\"array\");",
+                  "    pm.expect(products.length).to.eql(6);",
+                  "    var codes = products.map(function (p) { return p.code; });",
+                  "    pm.expect(codes).to.include(\"SAVINGS_VIP\");",
+                  "    pm.expect(codes).to.include(\"CURRENT_PYME\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/account-products",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "account-products"]
+            }
+          }
+        }
+      ]
     }
   ]
 }

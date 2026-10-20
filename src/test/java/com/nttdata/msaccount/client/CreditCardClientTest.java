@@ -52,7 +52,7 @@ class CreditCardClientTest {
                 .expectNext(true)
                 .verifyComplete();
         assertThat(requestedUrl.get())
-                .isEqualTo("http://credit:8082/api/v1/credit-cards?customerId=" + CUSTOMER_ID);
+                .isEqualTo("http://credit:8082/api/v1/credit-cards?customerId=" + CUSTOMER_ID + "&status=ACTIVE");
     }
 
     @Test
