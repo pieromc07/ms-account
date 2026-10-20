@@ -1,0 +1,755 @@
+openapi: 3.0.3
+
+info:
+  title: MS Account API
+  version: 1.0.0
+  description: >
+    API REST para la gestión de cuentas bancarias, titulares y firmantes.
+    El servicio es dueño del saldo de cada cuenta.
+
+    Reglas de apertura (Parte I):
+    - Cliente personal: como máximo una cuenta de ahorro y una cuenta corriente.
+      Puede tener cuentas a plazo fijo sin límite.
+    - Cliente empresarial: solo puede tener cuentas corrientes, sin límite de cantidad.
+    - Cuentas empresariales: requieren al menos un titular. El cliente indicado al abrir
+      la cuenta queda como primer titular. Pueden tener cero o más firmantes autorizados.
+
+    Reglas de perfil (Parte II):
+    - Perfil VIP: la cuenta de ahorro exige una tarjeta de crédito existente en ms-credit.
+    - Perfil PYME: la cuenta corriente exige una tarjeta de crédito existente en ms-credit.
+    - El monto de apertura debe ser mayor o igual al monto mínimo configurado.
+
+    Validación entre servicios (Partes I y II):
+    - La existencia del cliente, su tipo y su perfil se consultan por REST a ms-customer.
+    - La tarjeta de crédito se consulta por REST a ms-credit.
+    - Si una dependencia no responde dentro del tiempo límite, la operación responde 503.
+
+    Las comisiones, los límites de movimientos y el promedio diario VIP se aplican en otros
+    flujos y no se exponen en este contrato.
+
+servers:
+  - url: http://localhost:8081
+    description: Entorno local
+
+tags:
+  - name: Accounts
+    description: Gestión de cuentas bancarias
+  - name: Holders
+    description: Gestión de titulares de cuentas empresariales
+  - name: Signers
+    description: Gestión de firmantes autorizados de cuentas empresariales
+
+paths:
+  /api/v1/accounts:
+    post:
+      tags:
+        - Accounts
+      summary: Open an account
+      description: >
+        Opens a savings, current or fixed-term account for a customer.
+        The system generates the identifier, the initial status ACTIVE
+        and the timestamps. The initial balance equals the opening amount.
+        For business accounts, the customer becomes the first holder.
+      operationId: createAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccountRequest'
+            examples:
+              personalSavings:
+                summary: Personal savings account
+                value:
+                  customerId: 65f1a8b2c4d9e01234567890
+                  accountType: SAVINGS
+                  openingAmount: 100.00
+              businessCurrent:
+                summary: Business current account
+                value:
+                  customerId: 65f1a8b2c4d9e01234567891
+                  accountType: CURRENT
+                  openingAmount: 500.00
+      responses:
+        '201':
+          description: Account opened successfully.
+          headers:
+            Location:
+              description: URI of the created account.
+              schema:
+                type: string
+              example: /api/v1/accounts/65f1a8b2c4d9e01234567892
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+
+        '400':
+          description: >
+            Invalid JSON, missing required fields, invalid values, opening amount
+            below the minimum, account type not allowed for the customer type or
+            profile, customer does not exist, or the customer lacks the required
+            credit card.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                status: 400
+                error: BAD_REQUEST
+                message: Invalid account data
+                path: /api/v1/accounts
+
+        '409':
+          description: The customer already has the maximum number of accounts of this type.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                status: 409
+                error: CONFLICT
+                message: Customer already has an account of this type
+                path: /api/v1/accounts
+
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+
+    get:
+      tags:
+        - Accounts
+      summary: List accounts
+      description: Returns accounts, including inactive ones. Supports optional filters.
+      operationId: listAccounts
+      parameters:
+        - $ref: '#/components/parameters/CustomerIdQuery'
+        - $ref: '#/components/parameters/AccountTypeQuery'
+        - $ref: '#/components/parameters/AccountStatusQuery'
+      responses:
+        '200':
+          description: Accounts returned successfully.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Account'
+
+        '400':
+          description: Invalid filter value.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                status: 400
+                error: BAD_REQUEST
+                message: Invalid account data
+                path: /api/v1/accounts
+
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/accounts/{accountId}:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+
+    get:
+      tags:
+        - Accounts
+      summary: Get an account by identifier
+      description: Returns an account, including inactive accounts.
+      operationId: getAccountById
+      responses:
+        '200':
+          description: Account returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+
+        '400':
+          description: The account identifier has an invalid format.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                status: 400
+                error: BAD_REQUEST
+                message: Invalid account identifier
+                path: /api/v1/accounts/invalid-id
+
+        '404':
+          $ref: '#/components/responses/AccountNotFound'
+
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags:
+        - Accounts
+      summary: Update the account status
+      description: >
+        Changes the status of an account. Only the status is updatable.
+        The account type, customer and balance cannot be changed here.
+      operationId: updateAccountStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAccountStatusRequest'
+            examples:
+              deactivate:
+                summary: Deactivate an account
+                value:
+                  status: INACTIVE
+      responses:
+        '200':
+          description: Account status updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+
+        '400':
+          description: Invalid JSON, missing status, or invalid status value.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                status: 400
+                error: BAD_REQUEST
+                message: Invalid account data
+                path: /api/v1/accounts/65f1a8b2c4d9e01234567892
+
+        '404':
+          $ref: '#/components/responses/AccountNotFound'
+
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Accounts
+      summary: Deactivate an account
+      description: >
+        Logically deletes the account by setting its status to INACTIVE.
+        The operation is idempotent. The record is not removed.
+      operationId: deleteAccount
+      responses:
+        '204':
+          description: Account deactivated successfully.
+
+        '404':
+          $ref: '#/components/responses/AccountNotFound'
+
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/accounts/{accountId}/holders:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+
+    post:
+      tags:
+        - Holders
+      summary: Add a holder to a business account
+      description: >
+        Adds a customer as a holder of a business account. The customer is
+        validated through ms-customer. Personal accounts do not use holders.
+      operationId: addAccountHolder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddAccountMemberRequest'
+            examples:
+              holder:
+                summary: Add holder
+                value:
+                  customerId: 65f1a8b2c4d9e01234567893
+      responses:
+        '201':
+          description: Holder added successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountMember'
+
+        '400':
+          description: >
+            Invalid JSON or missing customerId, the account is not a business
+            account, or the customer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                status: 400
+                error: BAD_REQUEST
+                message: Invalid holder data
+                path: /api/v1/accounts/65f1a8b2c4d9e01234567892/holders
+
+        '404':
+          $ref: '#/components/responses/AccountNotFound'
+
+        '409':
+          description: The customer is already a holder of this account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                status: 409
+                error: CONFLICT
+                message: Customer is already a holder of this account
+                path: /api/v1/accounts/65f1a8b2c4d9e01234567892/holders
+
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+
+    get:
+      tags:
+        - Holders
+      summary: List holders of an account
+      operationId: listAccountHolders
+      responses:
+        '200':
+          description: Holders returned successfully.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccountMember'
+
+        '400':
+          description: The account identifier has an invalid format.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+        '404':
+          $ref: '#/components/responses/AccountNotFound'
+
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/accounts/{accountId}/holders/{customerId}:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+      - $ref: '#/components/parameters/CustomerId'
+
+    delete:
+      tags:
+        - Holders
+      summary: Remove a holder from an account
+      description: >
+        Removes a holder from a business account. A business account must keep
+        at least one holder.
+      operationId: removeAccountHolder
+      responses:
+        '204':
+          description: Holder removed successfully.
+
+        '404':
+          description: The account does not exist or the customer is not a holder.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                status: 404
+                error: NOT_FOUND
+                message: Holder not found for this account
+                path: /api/v1/accounts/65f1a8b2c4d9e01234567892/holders/65f1a8b2c4d9e01234567893
+
+        '409':
+          description: The account would be left without holders.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                status: 409
+                error: CONFLICT
+                message: Business account must keep at least one holder
+                path: /api/v1/accounts/65f1a8b2c4d9e01234567892/holders/65f1a8b2c4d9e01234567893
+
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/accounts/{accountId}/signers:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+
+    post:
+      tags:
+        - Signers
+      summary: Add an authorized signer to a business account
+      description: >
+        Adds a customer as an authorized signer of a business account. The
+        customer is validated through ms-customer. Zero or more signers are allowed.
+      operationId: addAccountSigner
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddAccountMemberRequest'
+            examples:
+              signer:
+                summary: Add signer
+                value:
+                  customerId: 65f1a8b2c4d9e01234567894
+      responses:
+        '201':
+          description: Signer added successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountMember'
+
+        '400':
+          description: >
+            Invalid JSON or missing customerId, the account is not a business
+            account, or the customer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                status: 400
+                error: BAD_REQUEST
+                message: Invalid signer data
+                path: /api/v1/accounts/65f1a8b2c4d9e01234567892/signers
+
+        '404':
+          $ref: '#/components/responses/AccountNotFound'
+
+        '409':
+          description: The customer is already a signer of this account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                status: 409
+                error: CONFLICT
+                message: Customer is already a signer of this account
+                path: /api/v1/accounts/65f1a8b2c4d9e01234567892/signers
+
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+
+    get:
+      tags:
+        - Signers
+      summary: List signers of an account
+      operationId: listAccountSigners
+      responses:
+        '200':
+          description: Signers returned successfully.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccountMember'
+
+        '400':
+          description: The account identifier has an invalid format.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+        '404':
+          $ref: '#/components/responses/AccountNotFound'
+
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/accounts/{accountId}/signers/{customerId}:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+      - $ref: '#/components/parameters/CustomerId'
+
+    delete:
+      tags:
+        - Signers
+      summary: Remove a signer from an account
+      operationId: removeAccountSigner
+      responses:
+        '204':
+          description: Signer removed successfully.
+
+        '404':
+          description: The account does not exist or the customer is not a signer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                status: 404
+                error: NOT_FOUND
+                message: Signer not found for this account
+                path: /api/v1/accounts/65f1a8b2c4d9e01234567892/signers/65f1a8b2c4d9e01234567894
+
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  parameters:
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      description: Account identifier.
+      schema:
+        type: string
+        pattern: '^[0-9a-fA-F]{24}$'
+        example: 65f1a8b2c4d9e01234567892
+
+    CustomerId:
+      name: customerId
+      in: path
+      required: true
+      description: Customer identifier.
+      schema:
+        type: string
+        pattern: '^[0-9a-fA-F]{24}$'
+        example: 65f1a8b2c4d9e01234567893
+
+    CustomerIdQuery:
+      name: customerId
+      in: query
+      required: false
+      description: Filter accounts by customer identifier.
+      schema:
+        type: string
+        pattern: '^[0-9a-fA-F]{24}$'
+
+    AccountTypeQuery:
+      name: accountType
+      in: query
+      required: false
+      description: Filter accounts by type.
+      schema:
+        $ref: '#/components/schemas/AccountType'
+
+    AccountStatusQuery:
+      name: status
+      in: query
+      required: false
+      description: Filter accounts by status.
+      schema:
+        $ref: '#/components/schemas/AccountStatus'
+
+  responses:
+    UnsupportedMediaType:
+      description: Unsupported request content type.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            status: 415
+            error: UNSUPPORTED_MEDIA_TYPE
+            message: Unsupported request content type
+            path: /api/v1/accounts
+
+    AccountNotFound:
+      description: Account not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            status: 404
+            error: NOT_FOUND
+            message: Account not found
+            path: /api/v1/accounts/65f1a8b2c4d9e01234567892
+
+    DependencyUnavailable:
+      description: >
+        A required dependency (ms-customer or ms-credit) did not respond
+        within the time limit.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            status: 503
+            error: SERVICE_UNAVAILABLE
+            message: A required service is unavailable
+            path: /api/v1/accounts
+
+    InternalServerError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            status: 500
+            error: INTERNAL_SERVER_ERROR
+            message: An unexpected server error occurred
+            path: /api/v1/accounts
+
+  schemas:
+    AccountType:
+      type: string
+      enum:
+        - SAVINGS
+        - CURRENT
+        - FIXED_TERM
+
+    AccountStatus:
+      type: string
+      enum:
+        - ACTIVE
+        - INACTIVE
+
+    CreateAccountRequest:
+      type: object
+      required:
+        - customerId
+        - accountType
+        - openingAmount
+      additionalProperties: false
+      properties:
+        customerId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          example: 65f1a8b2c4d9e01234567890
+        accountType:
+          $ref: '#/components/schemas/AccountType'
+        openingAmount:
+          type: number
+          format: double
+          minimum: 0
+          description: Initial deposit. Must be greater than or equal to the configured minimum.
+          example: 100.00
+
+    UpdateAccountStatusRequest:
+      type: object
+      required:
+        - status
+      additionalProperties: false
+      properties:
+        status:
+          $ref: '#/components/schemas/AccountStatus'
+
+    AddAccountMemberRequest:
+      type: object
+      required:
+        - customerId
+      additionalProperties: false
+      properties:
+        customerId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          example: 65f1a8b2c4d9e01234567893
+
+    Account:
+      type: object
+      required:
+        - id
+        - customerId
+        - accountType
+        - status
+        - balance
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          example: 65f1a8b2c4d9e01234567892
+        customerId:
+          type: string
+          example: 65f1a8b2c4d9e01234567890
+        accountType:
+          $ref: '#/components/schemas/AccountType'
+        status:
+          $ref: '#/components/schemas/AccountStatus'
+        balance:
+          type: number
+          format: double
+          readOnly: true
+          description: >
+            Current balance, owned by this service. Changed only by balance
+            commands in later phases.
+          example: 100.00
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+          example: 2026-10-20T10:00:00Z
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          example: 2026-10-20T10:00:00Z
+
+    AccountMember:
+      type: object
+      required:
+        - customerId
+        - addedAt
+      properties:
+        customerId:
+          type: string
+          example: 65f1a8b2c4d9e01234567893
+        addedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          example: 2026-10-20T10:05:00Z
+
+    ApiError:
+      type: object
+      required:
+        - status
+        - error
+        - message
+        - path
+      properties:
+        status:
+          type: integer
+          example: 409
+        error:
+          type: string
+          example: CONFLICT
+        message:
+          type: string
+          example: Customer already has an account of this type
+        path:
+          type: string
+          example: /api/v1/accounts

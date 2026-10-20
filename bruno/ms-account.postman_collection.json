@@ -1,0 +1,1148 @@
+{
+  "info": {
+    "_postman_id": "9e4c2a71-3b8d-4f6e-a1d2-7c5b8e0f3a22",
+    "name": "MS Account",
+    "description": "Pruebas de /api/v1/accounts (cuentas, titulares y firmantes). Requiere ms-customer en 8080 y ms-account en 8081. Ejecutar las carpetas en orden 0 a 5. Cada ejecucion genera DNI y RUC nuevos en la carpeta 0. ms-credit (8082) no es necesario: la cuenta corriente PYME acepta 400 o 503.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8081" },
+    { "key": "customerBaseUrl", "value": "http://localhost:8080" },
+    { "key": "dni", "value": "" },
+    { "key": "rucPyme", "value": "" },
+    { "key": "rucStandard", "value": "" },
+    { "key": "personalId", "value": "" },
+    { "key": "pymeId", "value": "" },
+    { "key": "standardId", "value": "" },
+    { "key": "savingsId", "value": "" },
+    { "key": "businessAccountId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0. Preparacion (ms-customer)",
+      "item": [
+        {
+          "name": "Crear cliente personal (201)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"dni\", String(Math.floor(10000000 + Math.random() * 89999999)));",
+                  "pm.collectionVariables.set(\"rucPyme\", \"20\" + String(Math.floor(100000000 + Math.random() * 899999999)));",
+                  "pm.collectionVariables.set(\"rucStandard\", \"20\" + String(Math.floor(100000000 + Math.random() * 899999999)));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set(\"personalId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerType\": \"PERSONAL\",\n  \"documentType\": \"DNI\",\n  \"documentNumber\": \"{{dni}}\",\n  \"profile\": \"STANDARD\",\n  \"email\": \"cuentas.personal@example.com\",\n  \"phone\": \"999111222\",\n  \"personalDetails\": {\n    \"firstName\": \"Luis\",\n    \"lastName\": \"Mendoza\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{customerBaseUrl}}/api/v1/customers",
+              "host": ["{{customerBaseUrl}}"],
+              "path": ["api", "v1", "customers"]
+            }
+          }
+        },
+        {
+          "name": "Crear cliente empresarial PYME (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set(\"pymeId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerType\": \"BUSINESS\",\n  \"documentType\": \"RUC\",\n  \"documentNumber\": \"{{rucPyme}}\",\n  \"profile\": \"PYME\",\n  \"email\": \"pyme@ejemplo.com.pe\",\n  \"phone\": \"014445566\",\n  \"businessDetails\": {\n    \"legalName\": \"Comercial Pyme S.A.C.\",\n    \"tradeName\": \"Pyme\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{customerBaseUrl}}/api/v1/customers",
+              "host": ["{{customerBaseUrl}}"],
+              "path": ["api", "v1", "customers"]
+            }
+          }
+        },
+        {
+          "name": "Crear cliente empresarial STANDARD (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set(\"standardId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerType\": \"BUSINESS\",\n  \"documentType\": \"RUC\",\n  \"documentNumber\": \"{{rucStandard}}\",\n  \"profile\": \"STANDARD\",\n  \"email\": \"standard@ejemplo.com.pe\",\n  \"phone\": \"014447788\",\n  \"businessDetails\": {\n    \"legalName\": \"Empresa Standard S.A.C.\",\n    \"tradeName\": \"Standard\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{customerBaseUrl}}/api/v1/customers",
+              "host": ["{{customerBaseUrl}}"],
+              "path": ["api", "v1", "customers"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Crear cuentas",
+      "item": [
+        {
+          "name": "Crear cuenta de ahorros personal (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Cuenta ACTIVE con saldo inicial igual a la apertura\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.status).to.eql(\"ACTIVE\");",
+                  "    pm.expect(body.balance).to.eql(100);",
+                  "});",
+                  "pm.collectionVariables.set(\"savingsId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{personalId}}\",\n  \"accountType\": \"SAVINGS\",\n  \"openingAmount\": 100\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"]
+            }
+          }
+        },
+        {
+          "name": "Crear segunda cuenta de ahorros activa del mismo cliente (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{personalId}}\",\n  \"accountType\": \"SAVINGS\",\n  \"openingAmount\": 100\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"]
+            }
+          }
+        },
+        {
+          "name": "Crear cuenta corriente personal (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{personalId}}\",\n  \"accountType\": \"CURRENT\",\n  \"openingAmount\": 0\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"]
+            }
+          }
+        },
+        {
+          "name": "Crear cuenta a plazo fijo personal (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{personalId}}\",\n  \"accountType\": \"FIXED_TERM\",\n  \"openingAmount\": 500\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"]
+            }
+          }
+        },
+        {
+          "name": "Crear cuenta corriente empresarial STANDARD (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201 con Location\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(pm.response.headers.get(\"Location\")).to.include(\"/api/v1/accounts/\");",
+                  "});",
+                  "pm.test(\"Cuenta CURRENT ACTIVE con saldo inicial igual a la apertura\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.accountType).to.eql(\"CURRENT\");",
+                  "    pm.expect(body.status).to.eql(\"ACTIVE\");",
+                  "    pm.expect(body.balance).to.eql(250.5);",
+                  "});",
+                  "pm.collectionVariables.set(\"businessAccountId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{standardId}}\",\n  \"accountType\": \"CURRENT\",\n  \"openingAmount\": 250.5\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"]
+            }
+          }
+        },
+        {
+          "name": "Crear cuenta de ahorros empresarial (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{standardId}}\",\n  \"accountType\": \"SAVINGS\",\n  \"openingAmount\": 10\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"]
+            }
+          }
+        },
+        {
+          "name": "Crear cuenta corriente PYME sin tarjeta o con ms-credit caido (400 o 503)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400 (sin tarjeta) o 503 (ms-credit no disponible)\", function () {",
+                  "    pm.expect([400, 503]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{pymeId}}\",\n  \"accountType\": \"CURRENT\",\n  \"openingAmount\": 0\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"]
+            }
+          }
+        },
+        {
+          "name": "Crear cuenta con saldo inicial negativo (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{standardId}}\",\n  \"accountType\": \"CURRENT\",\n  \"openingAmount\": -5\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"]
+            }
+          }
+        },
+        {
+          "name": "Crear cuenta con cliente inexistente (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"000000000000000000000001\",\n  \"accountType\": \"CURRENT\",\n  \"openingAmount\": 5\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"]
+            }
+          }
+        },
+        {
+          "name": "Crear cuenta con tipo de cuenta invalido (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{personalId}}\",\n  \"accountType\": \"CHECKING\",\n  \"openingAmount\": 5\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"]
+            }
+          }
+        },
+        {
+          "name": "Crear cuenta con JSON malformado (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"customerId\":",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Consultar cuentas",
+      "item": [
+        {
+          "name": "Listar todas las cuentas (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200 y lista\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json()).to.be.an(\"array\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"]
+            }
+          }
+        },
+        {
+          "name": "Listar cuentas por tipo CURRENT (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Todas las cuentas son CURRENT\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.response.json().forEach(function (a) {",
+                  "        pm.expect(a.accountType).to.eql(\"CURRENT\");",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts?accountType=CURRENT",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"],
+              "query": [{ "key": "accountType", "value": "CURRENT" }]
+            }
+          }
+        },
+        {
+          "name": "Listar cuentas por cliente (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Todas las cuentas pertenecen al cliente\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().length).to.be.above(0);",
+                  "    pm.response.json().forEach(function (a) {",
+                  "        pm.expect(a.customerId).to.eql(pm.collectionVariables.get(\"standardId\"));",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts?customerId={{standardId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"],
+              "query": [{ "key": "customerId", "value": "{{standardId}}" }]
+            }
+          }
+        },
+        {
+          "name": "Listar cuentas por estado ACTIVE (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Todas las cuentas estan ACTIVE\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.response.json().forEach(function (a) {",
+                  "        pm.expect(a.status).to.eql(\"ACTIVE\");",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts?status=ACTIVE",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"],
+              "query": [{ "key": "status", "value": "ACTIVE" }]
+            }
+          }
+        },
+        {
+          "name": "Obtener cuenta por id (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200 y es la cuenta solicitada\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get(\"businessAccountId\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{businessAccountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{businessAccountId}}"]
+            }
+          }
+        },
+        {
+          "name": "Obtener cuenta inexistente (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/000000000000000000000009",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "000000000000000000000009"]
+            }
+          }
+        },
+        {
+          "name": "Obtener cuenta con id con formato invalido (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/xyz",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "xyz"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Cambiar estado",
+      "item": [
+        {
+          "name": "Desactivar cuenta (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200 y estado INACTIVE\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().status).to.eql(\"INACTIVE\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"INACTIVE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{businessAccountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{businessAccountId}}"]
+            }
+          }
+        },
+        {
+          "name": "Reactivar cuenta (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200 y estado ACTIVE\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().status).to.eql(\"ACTIVE\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{businessAccountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{businessAccountId}}"]
+            }
+          }
+        },
+        {
+          "name": "Cambiar a estado no permitido (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CLOSED\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{businessAccountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{businessAccountId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Titulares y firmantes (cuenta empresarial)",
+      "item": [
+        {
+          "name": "Listar titulares (200) incluye al cliente dueno",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200 y el dueno es titular\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const ids = pm.response.json().map(function (h) { return h.customerId; });",
+                  "    pm.expect(ids).to.include(pm.collectionVariables.get(\"standardId\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{businessAccountId}}/holders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{businessAccountId}}", "holders"]
+            }
+          }
+        },
+        {
+          "name": "Agregar titular ya existente (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{standardId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{businessAccountId}}/holders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{businessAccountId}}", "holders"]
+            }
+          }
+        },
+        {
+          "name": "Agregar titular PYME (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(pm.response.json().customerId).to.eql(pm.collectionVariables.get(\"pymeId\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{pymeId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{businessAccountId}}/holders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{businessAccountId}}", "holders"]
+            }
+          }
+        },
+        {
+          "name": "Quitar titular PYME (204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 204\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{businessAccountId}}/holders/{{pymeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{businessAccountId}}", "holders", "{{pymeId}}"]
+            }
+          }
+        },
+        {
+          "name": "Quitar al ultimo titular (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{businessAccountId}}/holders/{{standardId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{businessAccountId}}", "holders", "{{standardId}}"]
+            }
+          }
+        },
+        {
+          "name": "Agregar titular a cuenta de ahorros personal (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{pymeId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{savingsId}}/holders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{savingsId}}", "holders"]
+            }
+          }
+        },
+        {
+          "name": "Agregar firmante (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(pm.response.json().customerId).to.eql(pm.collectionVariables.get(\"pymeId\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{pymeId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{businessAccountId}}/signers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{businessAccountId}}", "signers"]
+            }
+          }
+        },
+        {
+          "name": "Listar firmantes (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200 y contiene al firmante\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const ids = pm.response.json().map(function (s) { return s.customerId; });",
+                  "    pm.expect(ids).to.include(pm.collectionVariables.get(\"pymeId\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{businessAccountId}}/signers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{businessAccountId}}", "signers"]
+            }
+          }
+        },
+        {
+          "name": "Agregar firmante ya existente (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{pymeId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{businessAccountId}}/signers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{businessAccountId}}", "signers"]
+            }
+          }
+        },
+        {
+          "name": "Quitar firmante (204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 204\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{businessAccountId}}/signers/{{pymeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{businessAccountId}}", "signers", "{{pymeId}}"]
+            }
+          }
+        },
+        {
+          "name": "Quitar firmante que no existe (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{businessAccountId}}/signers/{{pymeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{businessAccountId}}", "signers", "{{pymeId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Baja logica",
+      "item": [
+        {
+          "name": "Eliminar cuenta (204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 204\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{businessAccountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{businessAccountId}}"]
+            }
+          }
+        },
+        {
+          "name": "Eliminar la misma cuenta otra vez (204, idempotente)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 204\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{businessAccountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{businessAccountId}}"]
+            }
+          }
+        },
+        {
+          "name": "La cuenta eliminada queda INACTIVE (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200 y estado INACTIVE\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().status).to.eql(\"INACTIVE\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{businessAccountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{businessAccountId}}"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

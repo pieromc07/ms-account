@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: ms-account
+  config:
+    import: optional:classpath:mongo-credentials.yaml
+
+server:
+  port: 8081
+
+account:
+  rules:
+    minimum-opening-amount: 0.00
+  clients:
+    customer-base-url: http://localhost:8080
+    credit-base-url: http://localhost:8082
+    timeout: 2s
