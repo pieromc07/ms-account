@@ -57,7 +57,7 @@
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
 
-		<!-- Resilience4j: circuit breaker sobre las llamadas REST a ms-customer y ms-credit -->
+		<!-- Resilience4j: circuit breaker sobre las llamadas REST a ms-customer -->
 		<dependency>
 			<groupId>io.github.resilience4j</groupId>
 			<artifactId>resilience4j-spring-boot4</artifactId>
@@ -84,6 +84,18 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-redis-reactive</artifactId>
+		</dependency>
+
+		<!-- Eventos: comandos de saldo de ms-transaction y eventos de ms-credit y ms-account -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-kafka</artifactId>
+		</dependency>
+
+		<!-- Autorización: valida los JWT emitidos por ms-customer -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
 		</dependency>
 
 		<dependency>

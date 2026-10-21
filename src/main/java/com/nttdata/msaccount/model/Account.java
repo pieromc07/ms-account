@@ -24,6 +24,7 @@ public class Account {
     private String id;
     private String customerId;
     private CustomerType customerType;
+    private CustomerProfile customerProfile;
     private AccountType accountType;
     private AccountStatus status;
     private BigDecimal balance;

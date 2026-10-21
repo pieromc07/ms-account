@@ -3,6 +3,8 @@ package com.nttdata.msaccount.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -23,10 +25,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Example;
 import org.springframework.http.HttpStatus;
 
-import com.nttdata.msaccount.client.CreditCardClient;
 import com.nttdata.msaccount.client.CustomerClient;
 import com.nttdata.msaccount.client.CustomerClient.CustomerInfo;
 import com.nttdata.msaccount.config.AccountProperties;
+import com.nttdata.msaccount.event.AccountEventPublisher;
+import com.nttdata.msaccount.event.AccountOpened;
 import com.nttdata.msaccount.exception.BusinessException;
 import com.nttdata.msaccount.exception.DependencyUnavailableException;
 import com.nttdata.msaccount.model.Account;
@@ -56,20 +59,25 @@ class AccountServiceTest {
     private CustomerClient customerClient;
 
     @Mock
-    private CreditCardClient creditCardClient;
+    private CreditProjectionService creditProjections;
+
+    @Mock
+    private AccountEventPublisher publisher;
 
     private AccountService service;
 
     @BeforeEach
     void setUp() {
+        lenient().when(creditProjections.isOverdue(anyString())).thenReturn(Single.just(false));
+        lenient().when(publisher.publish(anyString(), any(), any())).thenReturn(Completable.complete());
         service = serviceWithMinimum(BigDecimal.ZERO);
     }
 
     private AccountService serviceWithMinimum(BigDecimal minimum) {
         AccountProperties properties = new AccountProperties(
                 new AccountProperties.Rules(minimum),
-                new AccountProperties.Clients("http://customer", "http://credit", Duration.ofSeconds(2)));
-        return new AccountService(repository, customerClient, creditCardClient, properties);
+                new AccountProperties.Clients("http://customer", Duration.ofSeconds(2)));
+        return new AccountService(repository, customerClient, creditProjections, publisher, properties);
     }
 
     @Test
@@ -165,7 +173,7 @@ class AccountServiceTest {
         when(repository.countByCustomerIdAndAccountTypeAndStatus(
                 CUSTOMER_ID, AccountType.SAVINGS, AccountStatus.ACTIVE))
                 .thenReturn(Mono.just(0L));
-        when(creditCardClient.hasCreditCard(CUSTOMER_ID)).thenReturn(Mono.just(false));
+        when(creditProjections.hasActiveCard(CUSTOMER_ID)).thenReturn(Single.just(false));
 
         assertFailsWith(service.open(CUSTOMER_ID, AccountType.SAVINGS, BigDecimal.TEN), HttpStatus.BAD_REQUEST);
 
@@ -179,7 +187,7 @@ class AccountServiceTest {
         when(repository.countByCustomerIdAndAccountTypeAndStatus(
                 CUSTOMER_ID, AccountType.SAVINGS, AccountStatus.ACTIVE))
                 .thenReturn(Mono.just(0L));
-        when(creditCardClient.hasCreditCard(CUSTOMER_ID)).thenReturn(Mono.just(true));
+        when(creditProjections.hasActiveCard(CUSTOMER_ID)).thenReturn(Single.just(true));
         when(repository.save(any(Account.class))).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 
         Account saved = service.open(CUSTOMER_ID, AccountType.SAVINGS, BigDecimal.TEN).blockingGet();
@@ -191,7 +199,7 @@ class AccountServiceTest {
     void openPymeCurrentAccountWithCardAddsOpenerAsHolder() {
         when(customerClient.findById(CUSTOMER_ID))
                 .thenReturn(Mono.just(customer(CustomerType.BUSINESS, CustomerProfile.PYME)));
-        when(creditCardClient.hasCreditCard(CUSTOMER_ID)).thenReturn(Mono.just(true));
+        when(creditProjections.hasActiveCard(CUSTOMER_ID)).thenReturn(Single.just(true));
         when(repository.save(any(Account.class))).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 
         Account saved = service.open(CUSTOMER_ID, AccountType.CURRENT, BigDecimal.TEN).blockingGet();
@@ -199,6 +207,50 @@ class AccountServiceTest {
         assertThat(saved.getCustomerType()).isEqualTo(CustomerType.BUSINESS);
         assertThat(saved.getHolders()).hasSize(1);
         assertThat(saved.getHolders().get(0).customerId()).isEqualTo(CUSTOMER_ID);
+    }
+
+    @Test
+    void openOverdueCustomerFailsWithConflict() {
+        when(customerClient.findById(CUSTOMER_ID))
+                .thenReturn(Mono.just(customer(CustomerType.PERSONAL, CustomerProfile.STANDARD)));
+        when(repository.countByCustomerIdAndAccountTypeAndStatus(
+                CUSTOMER_ID, AccountType.SAVINGS, AccountStatus.ACTIVE))
+                .thenReturn(Mono.just(0L));
+        when(creditProjections.isOverdue(CUSTOMER_ID)).thenReturn(Single.just(true));
+
+        assertFailsWith(service.open(CUSTOMER_ID, AccountType.SAVINGS, BigDecimal.TEN), HttpStatus.CONFLICT);
+
+        verify(repository, never()).save(any(Account.class));
+    }
+
+    @Test
+    void openPublishesAccountOpenedEvent() {
+        when(customerClient.findById(CUSTOMER_ID))
+                .thenReturn(Mono.just(customer(CustomerType.PERSONAL, CustomerProfile.STANDARD)));
+        when(repository.countByCustomerIdAndAccountTypeAndStatus(
+                CUSTOMER_ID, AccountType.SAVINGS, AccountStatus.ACTIVE))
+                .thenReturn(Mono.just(0L));
+        when(repository.save(any(Account.class))).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+
+        service.open(CUSTOMER_ID, AccountType.SAVINGS, BigDecimal.TEN).blockingGet();
+
+        verify(publisher).publish(eq(AccountOpened.TOPIC), any(), any(AccountOpened.class));
+    }
+
+    @Test
+    void openSucceedsWhenEventPublishingFails() {
+        when(customerClient.findById(CUSTOMER_ID))
+                .thenReturn(Mono.just(customer(CustomerType.PERSONAL, CustomerProfile.STANDARD)));
+        when(repository.countByCustomerIdAndAccountTypeAndStatus(
+                CUSTOMER_ID, AccountType.SAVINGS, AccountStatus.ACTIVE))
+                .thenReturn(Mono.just(0L));
+        when(repository.save(any(Account.class))).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+        when(publisher.publish(anyString(), any(), any()))
+                .thenReturn(Completable.error(new IllegalStateException("kafka unavailable")));
+
+        Account saved = service.open(CUSTOMER_ID, AccountType.SAVINGS, BigDecimal.TEN).blockingGet();
+
+        assertThat(saved.getStatus()).isEqualTo(AccountStatus.ACTIVE);
     }
 
     @Test

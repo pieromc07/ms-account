@@ -6,9 +6,10 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 
 import com.nttdata.msaccount.config.AccountProperties;
 import com.nttdata.msaccount.config.CatalogProperties;
+import com.nttdata.msaccount.config.JwtProperties;
 
 @SpringBootApplication
-@EnableConfigurationProperties({AccountProperties.class, CatalogProperties.class})
+@EnableConfigurationProperties({AccountProperties.class, CatalogProperties.class, JwtProperties.class})
 public class MsAccountApplication {
 
     public static void main(String[] args) {

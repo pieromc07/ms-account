@@ -14,10 +14,21 @@ import com.nttdata.msaccount.model.AccountStatus;
 import com.nttdata.msaccount.model.AccountType;
 import com.nttdata.msaccount.model.CustomerProfile;
 import com.nttdata.msaccount.model.CustomerType;
+import com.nttdata.msaccount.model.DebitCardStatus;
+import com.nttdata.msaccount.model.IssuedDebitCard;
 import com.nttdata.msaccount.model.Member;
 
 @Component
 public class AccountMapper {
+
+    public com.nttdata.msaccount.generated.dto.DebitCard toDebitCardDto(IssuedDebitCard card) {
+        return new com.nttdata.msaccount.generated.dto.DebitCard()
+                .id(card.getId())
+                .accountId(card.getAccountId())
+                .customerId(card.getCustomerId())
+                .status(toApiDebitCardStatus(card.getStatus()))
+                .createdAt(toOffsetDateTime(card.getCreatedAt()));
+    }
 
     public com.nttdata.msaccount.generated.dto.Account toAccountDto(Account account) {
         return new com.nttdata.msaccount.generated.dto.Account()
@@ -67,6 +78,10 @@ public class AccountMapper {
 
     private com.nttdata.msaccount.generated.dto.CustomerType toApiCustomerType(CustomerType type) {
         return com.nttdata.msaccount.generated.dto.CustomerType.valueOf(type.name());
+    }
+
+    private com.nttdata.msaccount.generated.dto.DebitCardStatus toApiDebitCardStatus(DebitCardStatus status) {
+        return com.nttdata.msaccount.generated.dto.DebitCardStatus.valueOf(status.name());
     }
 
     private com.nttdata.msaccount.generated.dto.CustomerProfile toApiCustomerProfile(CustomerProfile profile) {

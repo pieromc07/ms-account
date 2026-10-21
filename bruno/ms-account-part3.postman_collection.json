@@ -1,0 +1,176 @@
+{
+  "info": {
+    "_postman_id": "5d1a7c3e-2b9f-4e8a-9c61-7f0b3d2e8a44",
+    "name": "MS Account Part III - Debit cards",
+    "description": "Pruebas de /api/v1/accounts/{accountId}/debit-cards en ms-account (8081). Requiere JWT: primero ejecutar Login contra ms-customer (8080) con un cliente existente; el token se guarda automaticamente. Antes de ejecutar, reemplazar documentNumber, password y accountId. La cuenta debe estar ACTIVE para emitir tarjetas.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "customerBaseUrl", "value": "http://localhost:8080" },
+    { "key": "accountBaseUrl", "value": "http://localhost:8081" },
+    { "key": "documentType", "value": "DNI" },
+    { "key": "documentNumber", "value": "REEMPLAZAR_DOCUMENTO" },
+    { "key": "password", "value": "REEMPLAZAR_PASSWORD" },
+    { "key": "accountId", "value": "REEMPLAZAR_ACCOUNT_ID" },
+    { "key": "unknownAccountId", "value": "000000000000000000000000" },
+    { "key": "token", "value": "" },
+    { "key": "debitCardId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0. Autenticacion",
+      "item": [
+        {
+          "name": "Login (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.collectionVariables.set(\"token\", pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documentType\": \"{{documentType}}\",\n  \"documentNumber\": \"{{documentNumber}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{customerBaseUrl}}/api/v1/auth/login",
+              "host": ["{{customerBaseUrl}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Tarjetas de debito",
+      "item": [
+        {
+          "name": "Emitir tarjeta de debito (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Tarjeta ACTIVE asociada a la cuenta\", function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body.status).to.eql(\"ACTIVE\");",
+                  "    pm.expect(body.accountId).to.eql(pm.collectionVariables.get(\"accountId\"));",
+                  "    pm.collectionVariables.set(\"debitCardId\", body.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{accountBaseUrl}}/api/v1/accounts/{{accountId}}/debit-cards",
+              "host": ["{{accountBaseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{accountId}}", "debit-cards"]
+            }
+          }
+        },
+        {
+          "name": "Listar tarjetas de debito (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Incluye la tarjeta emitida\", function () {",
+                  "    var ids = pm.response.json().map(function (c) { return c.id; });",
+                  "    pm.expect(ids).to.include(pm.collectionVariables.get(\"debitCardId\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{accountBaseUrl}}/api/v1/accounts/{{accountId}}/debit-cards",
+              "host": ["{{accountBaseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{accountId}}", "debit-cards"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Errores",
+      "item": [
+        {
+          "name": "Sin token (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{accountBaseUrl}}/api/v1/accounts/{{accountId}}/debit-cards",
+              "host": ["{{accountBaseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{accountId}}", "debit-cards"]
+            }
+          }
+        },
+        {
+          "name": "Cuenta inexistente (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{accountBaseUrl}}/api/v1/accounts/{{unknownAccountId}}/debit-cards",
+              "host": ["{{accountBaseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{unknownAccountId}}", "debit-cards"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

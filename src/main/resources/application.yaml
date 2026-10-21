@@ -9,9 +9,15 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
 server:
   port: ${SERVER_PORT:8081}
+
+jwt:
+  issuer: ms-customer
+  public-key-location: ${JWT_PUBLIC_KEY_LOCATION:file:secrets/jwt-public-key.pem}
 
 eureka:
   client:
@@ -33,19 +39,12 @@ resilience4j:
         minimum-number-of-calls: 5
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10s
-      credit:
-        sliding-window-type: COUNT_BASED
-        sliding-window-size: 10
-        minimum-number-of-calls: 5
-        failure-rate-threshold: 50
-        wait-duration-in-open-state: 10s
 
 account:
   rules:
     minimum-opening-amount: 0.00
   clients:
     customer-base-url: ${CUSTOMER_BASE_URL:http://localhost:8080}
-    credit-base-url: ${CREDIT_BASE_URL:http://localhost:8082}
     timeout: 2s
   catalog:
     cache-ttl: 10m

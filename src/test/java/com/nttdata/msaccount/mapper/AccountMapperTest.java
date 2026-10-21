@@ -1,6 +1,7 @@
 package com.nttdata.msaccount.mapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -14,6 +15,8 @@ import com.nttdata.msaccount.model.Account;
 import com.nttdata.msaccount.model.AccountStatus;
 import com.nttdata.msaccount.model.AccountType;
 import com.nttdata.msaccount.model.CustomerType;
+import com.nttdata.msaccount.model.DebitCardStatus;
+import com.nttdata.msaccount.model.IssuedDebitCard;
 import com.nttdata.msaccount.model.Member;
 
 class AccountMapperTest {
@@ -108,6 +111,33 @@ class AccountMapperTest {
     @Test
     void toBigDecimalAvoidsBinaryRepresentationNoise() {
         assertThat(mapper.toBigDecimal(0.1d)).isEqualTo(new BigDecimal("0.1"));
+    }
+
+    @Test
+    void toDebitCardDtoMapsAllFieldsInUtc() {
+        Instant created = Instant.parse("2025-03-01T09:30:00Z");
+        IssuedDebitCard card = IssuedDebitCard.builder()
+                .id("card-1")
+                .accountId("acc-1")
+                .customerId("cust-1")
+                .status(DebitCardStatus.ACTIVE)
+                .createdAt(created)
+                .build();
+
+        com.nttdata.msaccount.generated.dto.DebitCard dto = mapper.toDebitCardDto(card);
+
+        assertThat(dto.getId()).isEqualTo("card-1");
+        assertThat(dto.getAccountId()).isEqualTo("acc-1");
+        assertThat(dto.getCustomerId()).isEqualTo("cust-1");
+        assertThat(dto.getStatus()).isEqualTo(com.nttdata.msaccount.generated.dto.DebitCardStatus.ACTIVE);
+        assertThat(dto.getCreatedAt()).isEqualTo(OffsetDateTime.ofInstant(created, ZoneOffset.UTC));
+    }
+
+    @Test
+    void toDebitCardDtoRejectsCardWithoutStatus() {
+        IssuedDebitCard card = IssuedDebitCard.builder().id("card-1").build();
+
+        assertThatThrownBy(() -> mapper.toDebitCardDto(card)).isInstanceOf(NullPointerException.class);
     }
 
 }

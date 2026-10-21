@@ -11,6 +11,6 @@ public record AccountProperties(Rules rules, Clients clients) {
     public record Rules(BigDecimal minimumOpeningAmount) {
     }
 
-    public record Clients(String customerBaseUrl, String creditBaseUrl, Duration timeout) {
+    public record Clients(String customerBaseUrl, Duration timeout) {
     }
 }

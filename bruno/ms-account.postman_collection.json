@@ -2,10 +2,15 @@
   "info": {
     "_postman_id": "9e4c2a71-3b8d-4f6e-a1d2-7c5b8e0f3a22",
     "name": "MS Account",
-    "description": "Pruebas de /api/v1/accounts (cuentas, titulares y firmantes). Requiere ms-customer en 8080 y ms-account en 8081. Ejecutar las carpetas en orden 0 a 5. Cada ejecucion genera DNI y RUC nuevos en la carpeta 0. ms-credit (8082) no es necesario: la cuenta corriente PYME acepta 400 o 503.",
+    "description": "Pruebas de /api/v1/accounts (cuentas, titulares y firmantes). Requiere ms-customer en 8080 y ms-account en 8081. Ejecutar las carpetas en orden 0 a 5. Cada ejecucion genera DNI y RUC nuevos en la carpeta 0. ms-credit (8082) no es necesario: la cuenta corriente PYME acepta 400 o 503. Desde Part III todas las llamadas requieren JWT: obtener el accessToken con POST ms-customer (8080) /api/v1/auth/login y pegarlo en la variable token de la coleccion.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
   "variable": [
+    { "key": "token", "value": "" },
     { "key": "baseUrl", "value": "http://localhost:8081" },
     { "key": "customerBaseUrl", "value": "http://localhost:8080" },
     { "key": "dni", "value": "" },

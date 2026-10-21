@@ -15,17 +15,26 @@ info:
       la cuenta queda como primer titular. Pueden tener cero o más firmantes autorizados.
 
     Reglas de perfil (Parte II):
-    - Perfil VIP: la cuenta de ahorro exige una tarjeta de crédito existente en ms-credit.
-    - Perfil PYME: la cuenta corriente exige una tarjeta de crédito existente en ms-credit.
+    - Perfil VIP: la cuenta de ahorro exige una tarjeta de crédito activa.
+    - Perfil PYME: la cuenta corriente exige una tarjeta de crédito activa.
     - El monto de apertura debe ser mayor o igual al monto mínimo configurado.
 
-    Validación entre servicios (Partes I y II):
-    - La existencia del cliente, su tipo y su perfil se consultan por REST a ms-customer.
-    - La tarjeta de crédito se consulta por REST a ms-credit.
-    - Si una dependencia no responde dentro del tiempo límite, la operación responde 503.
+    Reglas de deuda vencida (Parte III):
+    - Un cliente con deuda vencida en ms-credit no puede abrir cuentas nuevas (409).
 
-    Las comisiones, los límites de movimientos y el promedio diario VIP se aplican en otros
-    flujos y no se exponen en este contrato.
+    Validación entre servicios (Parte III):
+    - La existencia del cliente, su tipo y su perfil se consultan por REST a ms-customer.
+    - La tarjeta de crédito activa y la deuda vencida se leen de proyecciones locales
+      alimentadas por los eventos de ms-credit. No hay llamadas REST a ms-credit.
+    - Si ms-customer no responde dentro del tiempo límite, la operación responde 503.
+
+    Saldo (Parte III):
+    - El saldo cambia solo por comandos Kafka de ms-transaction (depósito y retiro).
+    - Una cuenta de ahorro VIP no puede quedar por debajo de S/ 2,000.00 tras un retiro.
+    - Las tarjetas de débito pertenecen a esta cuenta. Sus cargos llegan por comando Kafka.
+
+    Las comisiones y los límites de movimientos se aplican en el flujo de ms-transaction
+    y no se exponen en este contrato.
 
 servers:
   - url: http://localhost:8081
@@ -40,6 +49,8 @@ tags:
     description: Gestión de firmantes autorizados de cuentas empresariales
   - name: AccountProducts
     description: Catálogo maestro de productos de cuenta (cacheado en Redis)
+  - name: DebitCards
+    description: Tarjetas de débito asociadas a una cuenta
 
 paths:
   /api/v1/accounts:
@@ -527,6 +538,59 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /api/v1/accounts/{accountId}/debit-cards:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    post:
+      tags:
+        - DebitCards
+      summary: Issue a debit card for an account
+      description: >
+        Emite una tarjeta de débito asociada a la cuenta indicada. La cuenta debe estar
+        ACTIVE. La tarjeta no tiene cuerpo de solicitud: el titular es el cliente de la cuenta.
+      operationId: createDebitCard
+      responses:
+        '201':
+          description: Debit card issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DebitCard'
+        '404':
+          $ref: '#/components/responses/AccountNotFound'
+        '409':
+          description: The account is not ACTIVE.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                status: 409
+                error: CONFLICT
+                message: Account is not active
+                path: /api/v1/accounts/65f1a8b2c4d9e01234567892/debit-cards
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags:
+        - DebitCards
+      summary: List debit cards of an account
+      operationId: listDebitCards
+      responses:
+        '200':
+          description: Debit cards of the account.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DebitCard'
+        '404':
+          $ref: '#/components/responses/AccountNotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /api/v1/account-products:
     get:
       tags:
@@ -623,8 +687,7 @@ components:
 
     DependencyUnavailable:
       description: >
-        A required dependency (ms-customer or ms-credit) did not respond
-        within the time limit.
+        A required dependency (ms-customer) did not respond within the time limit.
       content:
         application/json:
           schema:
@@ -778,7 +841,7 @@ components:
           readOnly: true
           description: >
             Current balance, owned by this service. Changed only by balance
-            commands in later phases.
+            commands received from ms-transaction through Kafka.
           example: 100.00
         createdAt:
           type: string
@@ -805,6 +868,38 @@ components:
           format: date-time
           readOnly: true
           example: 2026-10-20T10:05:00Z
+
+    DebitCard:
+      type: object
+      required:
+        - id
+        - accountId
+        - customerId
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          readOnly: true
+          example: 65f1a8b2c4d9e01234567895
+        accountId:
+          type: string
+          example: 65f1a8b2c4d9e01234567892
+        customerId:
+          type: string
+          example: 65f1a8b2c4d9e01234567893
+        status:
+          $ref: '#/components/schemas/DebitCardStatus'
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+          example: 2026-10-20T10:10:00Z
+
+    DebitCardStatus:
+      type: string
+      enum:
+        - ACTIVE
 
     ApiError:
       type: object

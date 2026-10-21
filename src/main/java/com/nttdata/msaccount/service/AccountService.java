@@ -12,10 +12,11 @@ import org.springframework.data.domain.ExampleMatcher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
-import com.nttdata.msaccount.client.CreditCardClient;
 import com.nttdata.msaccount.client.CustomerClient;
 import com.nttdata.msaccount.client.CustomerClient.CustomerInfo;
 import com.nttdata.msaccount.config.AccountProperties;
+import com.nttdata.msaccount.event.AccountEventPublisher;
+import com.nttdata.msaccount.event.AccountOpened;
 import com.nttdata.msaccount.exception.BusinessException;
 import com.nttdata.msaccount.model.Account;
 import com.nttdata.msaccount.model.AccountStatus;
@@ -29,14 +30,17 @@ import com.nttdata.msaccount.util.ReactiveBridge;
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Single;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AccountService {
 
     private final AccountRepository repository;
     private final CustomerClient customerClient;
-    private final CreditCardClient creditCardClient;
+    private final CreditProjectionService creditProjections;
+    private final AccountEventPublisher publisher;
     private final AccountProperties properties;
 
     public Single<Account> open(String customerId, AccountType accountType, BigDecimal openingAmount) {
@@ -47,12 +51,16 @@ public class AccountService {
         }
         return loadCustomer(customerId).flatMap(customer -> {
             CustomerType customerType = customer.customerType();
+            CustomerProfile profile = profileOf(customer);
             checkTypeAllowed(customerType, accountType);
             return checkPersonalLimit(customerId, customerType, accountType)
+                    .andThen(Completable.defer(() -> checkNotOverdue(customerId)))
                     .andThen(Completable.defer(() -> requiresCreditCard(customer, accountType)
                             ? checkCreditCard(customerId)
                             : Completable.complete()))
-                    .andThen(Single.defer(() -> persist(newAccount(customerId, customerType, accountType, amount))));
+                    .andThen(Single.defer(() -> persist(
+                            newAccount(customerId, customerType, profile, accountType, amount))))
+                    .flatMap(saved -> publishOpened(saved).andThen(Single.just(saved)));
         });
     }
 
@@ -132,23 +140,45 @@ public class AccountService {
                         : Completable.complete());
     }
 
+    private Completable checkNotOverdue(String customerId) {
+        return creditProjections.isOverdue(customerId)
+                .flatMapCompletable(overdue -> overdue
+                        ? Completable.error(new BusinessException(HttpStatus.CONFLICT,
+                                "customer has overdue credit debt and cannot open new products"))
+                        : Completable.complete());
+    }
+
     private boolean requiresCreditCard(CustomerInfo customer, AccountType accountType) {
-        CustomerProfile profile = customer.profile() == null ? CustomerProfile.STANDARD : customer.profile();
+        CustomerProfile profile = profileOf(customer);
         return (customer.customerType() == CustomerType.PERSONAL
                 && profile == CustomerProfile.VIP && accountType == AccountType.SAVINGS)
                 || (customer.customerType() == CustomerType.BUSINESS
                 && profile == CustomerProfile.PYME && accountType == AccountType.CURRENT);
     }
 
-    private Completable checkCreditCard(String customerId) {
-        return ReactiveBridge.toSingle(creditCardClient.hasCreditCard(customerId))
-                .flatMapCompletable(hasCard -> hasCard
-                        ? Completable.complete()
-                        : Completable.error(badRequest("customer must have a credit card to open this account")));
+    private static CustomerProfile profileOf(CustomerInfo customer) {
+        return customer.profile() == null ? CustomerProfile.STANDARD : customer.profile();
     }
 
-    private Account newAccount(String customerId, CustomerType customerType, AccountType accountType,
-            BigDecimal amount) {
+    private Completable checkCreditCard(String customerId) {
+        return creditProjections.hasActiveCard(customerId)
+                .flatMapCompletable(hasCard -> hasCard
+                        ? Completable.complete()
+                        : Completable.error(badRequest(
+                                "customer must have an active credit card to open this account")));
+    }
+
+    private Completable publishOpened(Account account) {
+        AccountOpened event = new AccountOpened(AccountOpened.SCHEMA_VERSION, account.getId(),
+                account.getCustomerId(), account.getAccountType(), Instant.now());
+        return publisher.publish(AccountOpened.TOPIC, account.getId(), event)
+                .doOnError(error -> log.warn("AccountOpened event for account {} was not published",
+                        account.getId(), error))
+                .onErrorComplete();
+    }
+
+    private Account newAccount(String customerId, CustomerType customerType, CustomerProfile profile,
+            AccountType accountType, BigDecimal amount) {
         Instant now = Instant.now();
         List<Member> holders = new ArrayList<>();
         if (customerType == CustomerType.BUSINESS) {
@@ -157,6 +187,7 @@ public class AccountService {
         return Account.builder()
                 .customerId(customerId)
                 .customerType(customerType)
+                .customerProfile(profile)
                 .accountType(accountType)
                 .status(AccountStatus.ACTIVE)
                 .balance(amount)
