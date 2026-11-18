@@ -75,7 +75,7 @@ class AccountServiceTest {
 
     private AccountService serviceWithMinimum(BigDecimal minimum) {
         AccountProperties properties = new AccountProperties(
-                new AccountProperties.Rules(minimum),
+                new AccountProperties.Rules(minimum, new BigDecimal("2000.00"), 15),
                 new AccountProperties.Clients("http://customer", Duration.ofSeconds(2)));
         return new AccountService(repository, customerClient, creditProjections, publisher, properties);
     }

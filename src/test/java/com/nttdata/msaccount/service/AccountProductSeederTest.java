@@ -69,6 +69,7 @@ class AccountProductSeederTest {
     }
 
     private static AccountProperties properties(BigDecimal minimumOpeningAmount) {
-        return new AccountProperties(new AccountProperties.Rules(minimumOpeningAmount), null);
+        return new AccountProperties(new AccountProperties.Rules(
+                minimumOpeningAmount, new BigDecimal("2000.00"), 15), null);
     }
 }

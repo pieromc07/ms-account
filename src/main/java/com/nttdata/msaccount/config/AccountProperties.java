@@ -8,7 +8,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "account")
 public record AccountProperties(Rules rules, Clients clients) {
 
-    public record Rules(BigDecimal minimumOpeningAmount) {
+    public record Rules(
+            BigDecimal minimumOpeningAmount,
+            BigDecimal vipMinimumMonthlyAverage,
+            int fixedTermAllowedDayOfMonth) {
     }
 
     public record Clients(String customerBaseUrl, Duration timeout) {

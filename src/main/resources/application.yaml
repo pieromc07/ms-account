@@ -43,6 +43,8 @@ resilience4j:
 account:
   rules:
     minimum-opening-amount: 0.00
+    vip-minimum-monthly-average: 2000.00
+    fixed-term-allowed-day-of-month: 15
   clients:
     customer-base-url: ${CUSTOMER_BASE_URL:http://localhost:8080}
     timeout: 2s

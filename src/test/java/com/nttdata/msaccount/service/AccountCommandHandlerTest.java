@@ -58,7 +58,8 @@ class AccountCommandHandlerTest {
     void firstBalanceCommandMovesBalanceStoresOutcomeAndPublishesReply() {
         BalanceCommand command = balanceCommand("tx-1", "acc-1", BalanceCommand.Operation.DEPOSIT, "10.00");
         when(processed.findById("tx-1")).thenReturn(Mono.empty());
-        when(ledger.move("acc-1", BalanceCommand.Operation.DEPOSIT, new BigDecimal("10.00")))
+        when(ledger.move("acc-1", BalanceCommand.Operation.DEPOSIT, new BigDecimal("10.00"),
+                command.occurredAt()))
                 .thenReturn(Single.just(Movement.ok("acc-1")));
         when(processed.save(any(ProcessedBalanceCommand.class)))
                 .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
@@ -106,7 +107,8 @@ class AccountCommandHandlerTest {
     @Test
     void ledgerFailureIsPropagatedAndNothingIsStoredOrPublished() {
         when(processed.findById("tx-1")).thenReturn(Mono.empty());
-        when(ledger.move(any(), any(), any())).thenReturn(Single.error(new IllegalStateException("db down")));
+        when(ledger.move(any(), any(), any(), any()))
+                .thenReturn(Single.error(new IllegalStateException("db down")));
 
         handler.handleBalance(balanceCommand("tx-1", "acc-1", BalanceCommand.Operation.DEPOSIT, "5.00"))
                 .test()
@@ -121,7 +123,8 @@ class AccountCommandHandlerTest {
         DebitCardCharge charge = debitCharge("tx-9", "card-1", "25.00");
         when(processed.findById("tx-9")).thenReturn(Mono.empty());
         when(debitCards.findActive("card-1")).thenReturn(Maybe.just(activeCard("card-1", "acc-7")));
-        when(ledger.move("acc-7", BalanceCommand.Operation.WITHDRAWAL, new BigDecimal("25.00")))
+        when(ledger.move("acc-7", BalanceCommand.Operation.WITHDRAWAL, new BigDecimal("25.00"),
+                charge.occurredAt()))
                 .thenReturn(Single.just(Movement.ok("acc-7")));
         when(processed.save(any(ProcessedBalanceCommand.class)))
                 .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
@@ -144,7 +147,7 @@ class AccountCommandHandlerTest {
 
         handler.handleDebitCharge(debitCharge("tx-9", "card-1", "25.00")).test().assertComplete();
 
-        verify(ledger, never()).move(any(), any(), any());
+        verify(ledger, never()).move(any(), any(), any(), any());
         ArgumentCaptor<ProcessedBalanceCommand> saved = ArgumentCaptor.forClass(ProcessedBalanceCommand.class);
         verify(processed).save(saved.capture());
         assertThat(saved.getValue().getOutcome()).isEqualTo(BalanceResult.Outcome.REJECTED);

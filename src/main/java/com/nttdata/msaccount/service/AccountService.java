@@ -2,6 +2,8 @@ package com.nttdata.msaccount.service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Service;
 import com.nttdata.msaccount.client.CustomerClient;
 import com.nttdata.msaccount.client.CustomerClient.CustomerInfo;
 import com.nttdata.msaccount.config.AccountProperties;
+import com.nttdata.msaccount.config.BusinessCalendar;
 import com.nttdata.msaccount.event.AccountEventPublisher;
 import com.nttdata.msaccount.event.AccountOpened;
 import com.nttdata.msaccount.exception.BusinessException;
@@ -170,7 +173,7 @@ public class AccountService {
 
     private Completable publishOpened(Account account) {
         AccountOpened event = new AccountOpened(AccountOpened.SCHEMA_VERSION, account.getId(),
-                account.getCustomerId(), account.getAccountType(), Instant.now());
+                account.getCustomerId(), account.getAccountType(), account.getCustomerProfile(), Instant.now());
         return publisher.publish(AccountOpened.TOPIC, account.getId(), event)
                 .doOnError(error -> log.warn("AccountOpened event for account {} was not published",
                         account.getId(), error))
@@ -180,6 +183,7 @@ public class AccountService {
     private Account newAccount(String customerId, CustomerType customerType, CustomerProfile profile,
             AccountType accountType, BigDecimal amount) {
         Instant now = Instant.now();
+        LocalDate today = LocalDate.ofInstant(now, BusinessCalendar.ZONE);
         List<Member> holders = new ArrayList<>();
         if (customerType == CustomerType.BUSINESS) {
             holders.add(new Member(customerId, now));
@@ -191,6 +195,12 @@ public class AccountService {
                 .accountType(accountType)
                 .status(AccountStatus.ACTIVE)
                 .balance(amount)
+                .vipAverageMonth(profile == CustomerProfile.VIP && accountType == AccountType.SAVINGS
+                        ? YearMonth.from(today).toString() : null)
+                .vipClosedBalanceTotal(BigDecimal.ZERO)
+                .vipClosedDays(0)
+                .vipLastBalanceDate(profile == CustomerProfile.VIP && accountType == AccountType.SAVINGS
+                        ? today : null)
                 .holders(holders)
                 .signers(new ArrayList<>())
                 .createdAt(now)

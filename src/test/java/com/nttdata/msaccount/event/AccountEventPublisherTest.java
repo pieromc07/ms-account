@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
 
 import com.nttdata.msaccount.model.AccountType;
+import com.nttdata.msaccount.model.CustomerProfile;
 
 import tools.jackson.databind.json.JsonMapper;
 
@@ -48,7 +49,8 @@ class AccountEventPublisherTest {
         assertThat(payload.getValue())
                 .contains("\"accountId\":\"acc-1\"")
                 .contains("\"accountType\":\"SAVINGS\"")
-                .contains("\"schemaVersion\":1");
+                .contains("\"customerProfile\":\"STANDARD\"")
+                .contains("\"schemaVersion\":2");
     }
 
     @Test
@@ -85,6 +87,6 @@ class AccountEventPublisherTest {
 
     private static AccountOpened accountOpened() {
         return new AccountOpened(AccountOpened.SCHEMA_VERSION, "acc-1", "cust-1",
-                AccountType.SAVINGS, Instant.parse("2026-05-10T10:00:00Z"));
+                AccountType.SAVINGS, CustomerProfile.STANDARD, Instant.parse("2026-05-10T10:00:00Z"));
     }
 }

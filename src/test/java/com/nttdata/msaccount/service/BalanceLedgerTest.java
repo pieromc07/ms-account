@@ -11,6 +11,9 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import org.bson.Document;
@@ -28,6 +31,7 @@ import org.springframework.data.mongodb.core.query.UpdateDefinition;
 import com.mongodb.client.result.UpdateResult;
 import com.nttdata.msaccount.event.BalanceCommand;
 import com.nttdata.msaccount.event.BalanceResult;
+import com.nttdata.msaccount.config.AccountProperties;
 import com.nttdata.msaccount.model.Account;
 import com.nttdata.msaccount.model.AccountStatus;
 import com.nttdata.msaccount.model.AccountType;
@@ -49,7 +53,10 @@ class BalanceLedgerTest {
 
     @BeforeEach
     void setUp() {
-        ledger = new BalanceLedger(accounts, mongo);
+        AccountProperties properties = new AccountProperties(
+                new AccountProperties.Rules(BigDecimal.ZERO, new BigDecimal("2000.00"), 15), null);
+        ledger = new BalanceLedger(accounts, mongo, properties,
+                Clock.fixed(Instant.parse("2026-01-15T12:00:00Z"), ZoneOffset.UTC));
     }
 
     @Test
@@ -134,17 +141,18 @@ class BalanceLedgerTest {
     @Test
     void vipSavingsCannotFallBelowMinimum() {
         when(accounts.findById("acc-1")).thenReturn(Mono.just(account(AccountStatus.ACTIVE,
-                CustomerProfile.VIP, AccountType.SAVINGS, "2500.00")));
+                CustomerProfile.VIP, AccountType.SAVINGS, "2100.00")));
 
-        Movement movement = ledger.move("acc-1", BalanceCommand.Operation.WITHDRAWAL, new BigDecimal("600.00"))
+        Movement movement = ledger.move("acc-1", BalanceCommand.Operation.WITHDRAWAL, new BigDecimal("500.00"))
                 .blockingGet();
 
-        assertRejected(movement, "acc-1", "VIP savings account cannot fall below S/ 2,000.00");
+        assertRejected(movement, "acc-1",
+                "withdrawal would reduce the projected monthly average below S/ 2000.00");
         verifyNoInteractions(mongo);
     }
 
     @Test
-    void vipSavingsCanWithdrawDownToMinimum() {
+    void vipSavingsCanWithdrawWhenProjectedMonthlyAverageMeetsMinimum() {
         when(accounts.findById("acc-1")).thenReturn(Mono.just(account(AccountStatus.ACTIVE,
                 CustomerProfile.VIP, AccountType.SAVINGS, "2500.00")));
         when(mongo.updateFirst(any(Query.class), any(UpdateDefinition.class), eq(Account.class)))
@@ -169,6 +177,32 @@ class BalanceLedgerTest {
 
         assertThat(movement.outcome()).isEqualTo(BalanceResult.Outcome.OK);
         assertThat(setBalance()).isEqualByComparingTo(new BigDecimal("100.00"));
+    }
+
+    @Test
+    void fixedTermAccountRejectsMovementsOutsideDayFifteen() {
+        when(accounts.findById("acc-1")).thenReturn(Mono.just(account(AccountStatus.ACTIVE,
+                CustomerProfile.STANDARD, AccountType.FIXED_TERM, "1000.00")));
+
+        Movement movement = ledger.move("acc-1", BalanceCommand.Operation.DEPOSIT, new BigDecimal("10.00"),
+                Instant.parse("2026-01-14T12:00:00Z")).blockingGet();
+
+        assertRejected(movement, "acc-1",
+                "fixed-term accounts only allow deposits and withdrawals on day 15");
+        verifyNoInteractions(mongo);
+    }
+
+    @Test
+    void fixedTermAccountAllowsMovementsOnDayFifteen() {
+        when(accounts.findById("acc-1")).thenReturn(Mono.just(account(AccountStatus.ACTIVE,
+                CustomerProfile.STANDARD, AccountType.FIXED_TERM, "1000.00")));
+        when(mongo.updateFirst(any(Query.class), any(UpdateDefinition.class), eq(Account.class)))
+                .thenReturn(Mono.just(UpdateResult.acknowledged(1, 1L, null)));
+
+        Movement movement = ledger.move("acc-1", BalanceCommand.Operation.DEPOSIT, new BigDecimal("10.00"),
+                Instant.parse("2026-01-15T12:00:00Z")).blockingGet();
+
+        assertThat(movement.outcome()).isEqualTo(BalanceResult.Outcome.OK);
     }
 
     @Test

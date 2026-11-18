@@ -32,7 +32,7 @@ public class AccountCommandHandler {
 
     public Completable handleBalance(BalanceCommand command) {
         return replyOnce(command.transactionId(),
-                () -> ledger.move(command.accountId(), command.operation(), command.amount()),
+                () -> ledger.move(command.accountId(), command.operation(), command.amount(), command.occurredAt()),
                 BalanceResult.TOPIC);
     }
 
@@ -40,7 +40,8 @@ public class AccountCommandHandler {
         return replyOnce(charge.transactionId(),
                 () -> debitCards.findActive(charge.debitCardId())
                 .flatMap(card -> ledger.move(
-                        card.getAccountId(), BalanceCommand.Operation.WITHDRAWAL, charge.amount()).toMaybe())
+                        card.getAccountId(), BalanceCommand.Operation.WITHDRAWAL, charge.amount(),
+                        charge.occurredAt()).toMaybe())
                         .switchIfEmpty(Single.just(Movement.rejected(null, "debit card not found or inactive"))),
                 DebitCardCharge.RESULT_TOPIC);
     }

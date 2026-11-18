@@ -2,6 +2,7 @@ package com.nttdata.msaccount.model;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,6 +29,10 @@ public class Account {
     private AccountType accountType;
     private AccountStatus status;
     private BigDecimal balance;
+    private String vipAverageMonth;
+    private BigDecimal vipClosedBalanceTotal;
+    private Integer vipClosedDays;
+    private LocalDate vipLastBalanceDate;
 
     @Builder.Default
     private List<Member> holders = new ArrayList<>();

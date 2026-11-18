@@ -16,7 +16,7 @@ import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 class ClientConfigTest {
 
     private static final AccountProperties PROPERTIES = new AccountProperties(
-            new AccountProperties.Rules(BigDecimal.ZERO),
+            new AccountProperties.Rules(BigDecimal.ZERO, new BigDecimal("2000.00"), 15),
             new AccountProperties.Clients("http://customer:8080", Duration.ofSeconds(2)));
 
     @Test
